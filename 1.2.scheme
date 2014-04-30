@@ -1,0 +1,297 @@
+;;; Exercise 1.11
+;; Recursive Solution:
+(define (f n)
+  (if (< n 3)
+      n
+      (+
+       (f (- n 1))
+       (* 2 (f (- n 2)))
+       (* 3 (f (- n 3))))))
+
+;; Iterative Solution is very hard.
+
+;;; Exercise 1.12
+;;    1
+;;   1 1
+;;  1 2 1
+;; 1 3 3 1
+;;1 4 6 4 1
+;; The value at pascal row, column is equal to the value at
+;; pascal (row-1), (column-1) + pascal(row-1), column.
+;; when a row or column is zero, its value is 1
+(define (pascal row column)
+  (if (or (= 0 row)
+          (= 0 column)
+          (= column row))
+      1
+      (+ (pascal (- row 1) (- column 1))
+         (pascal (- row 1) column))))
+
+(= (pascal 0 0) 1)
+(= (pascal 1 0) 1)
+(= (pascal 2 1) 2)
+(= (pascal 3 2) 3)
+(= (pascal 4 2) 6)
+
+;; Change 10 cents using only pennies and nickels:
+;; All ways to change ten using only pennies: 1 way: 10 pennies
+;; All ways to change ten - nickel amnt using nickels and pennies:
+;;   All ways to change 5 using nickels and pennies:
+;;     All ways to change 5 using only pennies: 1 way: 5 pennies
+;;     All ways to change 5-nickel amnt using both:
+;;       amnt=0, counts as 1.
+;; So there's 3 possible ways.
+
+;;; Exercise 1.16
+;; define an iterative version of fast-expt (fast exponentiation)
+
+(define (expt b n)
+  (cond ((= n 0) 1)
+        ((even? n) (square (expt b (/ n 2))))
+        (else (* b (expt b (- n 1))))))
+
+(define (fast-expt b n)
+  (fast-expt-iter b n 1))
+
+(define (even? n)
+  (= (remainder n 2) 0))
+
+;; ab^n
+
+;; 2^2
+;; 1 * 2 ^ 2 === 4
+;; 1 * 4 ^ 1
+
+;; b^1 * b^n-1
+;;
+
+;; 3^3
+;; 3 3 1
+;; 1 * 3^3 = 27
+;; 3 * 3^2 = 27
+
+;; 5^5
+;; 5 5 1
+;; 5 4 5
+;; 25 2 5
+;; 625 1 5
+;; 625 0 3125
+(define (fast-expt-iter b n a)
+  (cond ((= n 0) a)
+        ((even? n) (fast-expt-iter (square b) (/ n 2) a))
+        ;; QUESTION: how were we supposed to 'see' that we could use
+        ;; (* a b) ?  Is that a mathematical simplification that I
+        ;; just didn't notice?
+        (else (fast-expt-iter b (- n 1) (* a b)))))
+
+;; 1.22
+;; hmm: (runtime) doesn't appear to work correctly in my
+;; implementation of scheme - it's almost always 0
+(define (smallest-divisor n)
+  (find-divisor n 2))
+
+(define (find-divisor n test-divisor)
+  (cond ((> (square test-divisor) n) n)
+        ((divides? test-divisor n) test-divisor)
+        (else (find-divisor n (next test-divisor)))))
+
+(define (next input)
+  (if (= input 2)
+      3
+      (+ input 2)))
+
+(define (divides? a b)
+  (= (remainder b a) 0))
+
+(define (prime? n)
+  (= n (smallest-divisor n)))
+
+(define (timed-prime-test n)
+  (newline)
+  (display n)
+  (start-prime-test n (runtime)))
+
+(define (start-prime-test n start-time)
+  (if (prime? n)
+      (report-prime (- (runtime) start-time))))
+
+(define (report-prime elapsed-time)
+  (display " *** ")
+  (display elapsed-time))
+
+(define (search-for-primes min max)
+  (if (< min max)
+      (test+recur min max)))
+
+(define (test+recur min max)
+  (timed-prime-test min)
+  (search-for-primes (+ 1 min) max))
+
+;; exercise 1.25
+;; replacing expmod
+;; original fn:
+(define (expmod base exp m)
+  (cond ((= exp 0) 1)
+        ((even? exp)
+         (remainder (square (expmod base (/ exp 2) m)) m))
+        (else
+         (remainder (* base (expmod base (- exp 1) m)) m))))
+
+(expmod 8 2 5)
+(remainder (square (expmod 8 (/ 2 2) 5)) 5)
+(remainder (square (expmod 8 1 5)) 5)
+(remainder (square (remainder (* 8 (expmod 8 0 5)) 5)) 5)
+(remainder (square (remainder 8 5)) 5)
+(remainder (square 3) 5)
+(remainder 9 5)
+4
+
+;; new:
+(define (expmod base exp m)
+  (remainder (fast-expt base exp) m))
+
+(expmod 2 4 5)
+
+;; alyssa's function seems to work just as well as the original.
+;; ah, but it is slow.
+;; it is slower than the original implementation because, while the
+;; original implementation used successive squaring while halving the
+;; exponent, the new implementation calculates the entire exponential
+;; at once. The exponential gets big very quickly (exponentially, in
+;; fact), so the numbers are more costly for the interpreter to work
+;; with.
+
+;; exercise 1.26
+;; Louis's code is O(n) instead of O(log n) because he calls expmod
+;; twice whenever the exponent is even.
+;; why O(log n) -> O(n) though? Why those values, specifically?
+
+;; exercise 1.27
+(define (fermat-test n)
+  (define (try-it a)
+    (= (expmod a n n) a))
+  (try-it (+ 1 (random (- n 1)))))
+
+(define (inc n) (+ 1 n))
+
+;; carmichael numbers passed to this fn will return #t, indicating
+;; that they are prime numbers, when in fact they are not.
+(define (carmichael-test n)
+  (define (carmichael-test* a)
+    (if (>= a n)
+        true
+        (and (= a (expmod a n n))
+             (carmichael-test* (inc a)))))
+  (carmichael-test* 1))
+
+;; exercise 1.28
+;; Miller-Rabin test
+
+(define (r-m-test n)
+  (define (try-it a)
+    ))
+
+;; Exercise 1.29
+(define (sum term a next b)
+  (if (> a b)
+      0
+      (+ (term a)
+         (sum term (next a) next b))))
+
+(define (simpson-integral f a b n)
+  (define h (/ (- b a) n))
+  (define (next x) (+ x 1))
+  (define (y k)
+    (f (+ a (* h k))))
+  (define (term k)
+    (* (cond ((odd? k) 4)
+             ((or (= k 0) (= k n)) 1)
+             ((even? k) 2))
+       (y k)))
+  (/ (* h (sum term 0 next n)) 3))
+
+;; Exercise 1.30
+;; iterative sum
+(define (sum term a next b)
+  (define (iter a result)
+    (if (> a b)
+        result
+        (iter (next a) (+ (term a) result))))
+  (iter (next a) (term a)))
+
+(define (identity a) a)
+(define (inc x) (+ x 1))
+
+;; Exercise 1.31
+;; a
+;; define product as a hof
+(define (product term a next b)
+  (if (> a b)
+      1
+      (* (term a) (product term (next a) next b))))
+;; define factorial in terms of product
+(define (factorial n)
+  (product identity 1 inc n))
+;; approximate pi using product
+(define (pi n)
+  (define (term x)
+    (if (even? x)
+        (/ (+ 2 x) (inc x))
+        (/ (inc x) (+ 2 x))))
+  (* 4 (product term 1.0 inc n)))
+;; b: now iteratively
+(define (product term a next b)
+  (define (iter a result)
+    (if (> a b)
+        result
+        (iter (next a) (* result (term a)))))
+  (iter a 1))
+
+;; Exercise 1.32
+;; show sum and product are just special cases of a more general
+;; notion; accumulate
+(define (accumulate combiner null-value term a next b)
+  (if (> a b)
+      null-value
+      (combiner (term a)
+                (accumulate combiner null-value term (next a) next b))))
+(define (sum term a next b)
+  (accumulate + 0 term a next b))
+(define (product term a next b)
+  (accumulate * 1 term a next b))
+
+;; accumulate, iteratively
+(define (accumulate combiner null-value term a next b)
+  (define (iter a result)
+    (if (> a b)
+        result
+        (iter (next a)
+              (combiner (term a) result))))
+  (iter a null-value))
+
+
+;; Exercise 1.33
+(define (filtered-accumulate combiner keep? null-value term a next b)
+  (define term-a (term a))
+  (if (> a b)
+      null-value
+      (combiner (if (keep? a) term-a null-value)
+                (filtered-accumulate combiner keep? null-value term (next a) next b))))
+
+
+(define (sum-of-squares-of-primes-in-range a b)
+  (filtered-accumulate + prime? 0 square a inc b))
+
+(define (gcd x y)
+  (define (iter val maxi)
+    (if (> val (max x y))
+        maxi
+        (if (= 0 (remainder x val) (remainder y val))
+            (iter (inc val) val)
+            (iter (inc val) maxi))))
+  (iter 1 1))
+
+(define (product-of-lesser-relative-primes n)
+  (define (relatively-prime-to-n? x)
+    (= 1 (gcd n x)))
+  (filtered-accumulate * relatively-prime-to-n? 1 identity 1 inc n))
