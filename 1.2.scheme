@@ -295,3 +295,799 @@
   (define (relatively-prime-to-n? x)
     (= 1 (gcd n x)))
   (filtered-accumulate * relatively-prime-to-n? 1 identity 1 inc n))
+
+;; Exercise 1.34
+;; The interpretter will eventually try to call 2 as a function, which it is not, resulting in a runtime error
+
+;; Exercise 1.35
+;; Show that the golden ratio is a fixed point of the transformation
+;; x -> 1 + 1/x, and compute the golden ratio using the fixed point procedure
+;;
+;; (golden ^ 2) = golden + 1
+;; golden = g
+;; g^2 = g + 1
+;; g = (g+1)/g
+;; g = (1)/g + g/g
+;; g = 1 + 1/g
+
+(define (transform x) (+ 1 (/ 1 x)))
+(transform (transform (transform 4)))
+
+(define tolerance .0000001)
+
+(define golden-ratio (fixed-point transform 1.0))
+
+(define (fixed-point f guess)
+  (define (close-enough? v1 v2)
+    (< (abs (- v1 v2)) tolerance))
+  (define (try guess)
+    (let ((next (f guess)))
+      (if (close-enough? guess next)
+          next
+          (try next))))
+  (try guess))
+
+;; Exercise 1.36
+;; Add printing to fixed-point
+(define (fixed-point f guess)
+  (define (close-enough? v1 v2)
+    (< (abs (- v1 v2)) tolerance))
+  (define (try guess)
+    (newline)
+    (display guess)
+    (let ((next (f guess)))
+      (if (close-enough? guess next)
+          next
+          (try next))))
+  (try guess))
+;; Find solution to x^x = 1000
+;; using fixed-point of x-> log(1000) / log(x)
+(fixed-point (lambda (x) (/ (log 1000) (log x)))
+             2)
+;; Now with average damping
+(define (average-damp f)
+  (lambda (y) (average y (f y))))
+
+(define (average x y) (/ (+ x y) 2))
+
+(fixed-point (average-damp (lambda (x) (/ (log 1000) (log x))))
+             2)
+;; The average-dampened solution converges much more quickly!
+
+;; Exercise 1.37
+;; a. continued fractions to estimate 1/golden-ratio
+(define (inc i) (+ i 1))
+(define (cont-frac n d k)
+  (define (next y)
+    (if (>= y k)
+        (/ (n y) (d y))
+        (/ (n y)
+           (+ (d y) (next (inc y))))))
+  (next 1))
+;; estimates 1/golden-ratio correct to four decimal places at
+;; k=13.
+;; Oddly enough, the calculation is exactly equal to the golden ratio
+;; calculated using fixed-point (as above) when k=15
+;; I wonder if this is more than coincidence.
+;; b. cont-frac using an iterative process
+;; The trick is to iterate by decrementing, rather than by incrementing
+(define (dec i) (- i 1))
+(define (cont-frac-iter n d k)
+  (define (next y val)
+    (if (<= y 1)
+        (/ (n y)
+           (+ val (d y)))
+        (next (dec y)
+              (/ (n y)
+                 (+ val (d y))))))
+  (next k 0))
+
+;; Exercise 1.38
+;; estimate e using cont-frac
+(define (d x) (if (= 0 (remainder (- x 2) 3))
+                  (+ 2 (* (/ (- x 2) 3) 2))
+                  1))
+(define e
+  (+ 2 (cont-frac (lambda (x) 1.0)
+                  d
+                  50)))
+
+;; Exercise 1.39
+;; tangent function using continued fractions
+;; tan x = x / (1 - (x^2 / (3 - (x^2 / (5 - ...))))
+;;       = x / (1 + (-(x^2)) / (3 + (-(x^2) / 5 + ...)))
+(define (square x) (* x x))
+(define (nth-odd n)
+  (- (* 2 n) 1))
+(define (tan-cf x k)
+  (cont-frac (lambda (y) (if (= y 1)
+                             1.0
+                             (* -1 (square x))))
+             nth-odd
+             k))
+
+;; Exercise 1.40
+;; cubic using newton's method
+;; I don't understand the math behind this well enough to
+;; Know whether my cubic function is correct
+(define (deriv g)
+  (lambda (x)
+    (/ (- (g (+ x dx)) (g x))
+       dx)))
+(define dx 0.00001)
+(define (newton-transform g)
+  (lambda (x)
+    (- x (/ ( g x) ((deriv g) x)))))
+(define (newtons-method g guess)
+  (fixed-point (newton-transform g) guess))
+(define (sqrt x)
+  (newtons-method (lambda (y) (- (square y) x))
+                  1.0))
+(define (cube x) (* x x x))
+(define (cubic a b c)
+  (lambda (x)
+    (+ (cube x) (* a (square x)) (* b x) c)))
+
+;; Exercise 1.41
+(define (inc x) (+ x 1))
+(define (double g)
+  (lambda (x) (g (g x))))
+
+;; Exercise 1.42
+;; define compose
+(define (compose f g)
+  (lambda (x) (f (g x))))
+
+;; Exercise 1.43
+;; define repeated such that ((repeated square 2) 5) => 625
+(define (repeated f n)
+  (define (fn x y)
+    (if (> y 0)
+        (fn (f x) (- y 1))
+        x))
+  (lambda (x)
+    (fn x n)))
+;; repeated using compose:
+(define (repeated f n)
+  (if (> n 1)
+      (compose f (repeated f (- n 1)))
+      f))
+
+;; Exercise 1.44
+;; smoothing functions
+(define dx 0.00001)
+;; I don't know how to handle variadic functions in scheme, so
+;; I have to do this!
+(define (average x y z)
+  (/ (+ x y z) 3))
+(define (smooth f)
+  (lambda (x)
+    (average (f (- x dx)) (f x) (f (+ x dx)))))
+;; smooth repeatedly
+(define (dec x) (- x 1))
+(define (n-fold-smoothed f n)
+  (if (> n 0)
+      (n-fold-smoothed (smooth f) (dec n))
+      f))
+;; using repeated
+(define (n-fold-smoothed f n)
+  ((repeated smooth n) f))
+;; Bill the Lizard's implementation looked like:
+(define (n-fold-smoothed f n)
+  (repeated (smooth f) n))
+;; His appears to be wrong. Smoothing `inc` should always
+;; just return the normal incremented value, but his doesn't.
+;; What gives?
+
+;; Exercise 1.45
+;; nth-root searches with repeated average damping
+;; Here's the example with square-roots:
+(define (sqrt x)
+  (fixed-point (average-damp (lambda (y) (/ x y)))
+               1.0))
+(define (cube-root x)
+  (fixed-point  (average-damp (lambda (y) (/ x (square y))))
+                1.0))
+;; This one will not converge:
+(define (fourth-root x)
+  (fixed-point  (average-damp (lambda (y) (/ x (cube y))))
+                1.0))
+(define (cube x) (* x x x))
+;; But by adding more average damping, it does converge:
+(define (fourth-root x)
+  (fixed-point  (average-damp (average-damp (lambda (y) (/ x (cube y)))))
+                1.0))
+;; create an nth-root procedure.
+(define (nth-root x n)
+  (define (find-repeats x y)
+    (if (>= (expt 2 y) x)
+        y
+        (find-repeats x (inc y))))
+  (fixed-point ((repeated average-damp (find-repeats x 1))
+                (lambda (y) (/ x (expt y (- n 1)))))
+               1.0))
+;; I struggled with the above because I was trying to do:
+(repeated (average-damp (lambda (y) (/ x (expt y (- n 1)))))
+          n)
+;; Which does not work, because it average damps the function, then
+;; repeatedly applied that function to itself, rather than repeatedly
+;; applying average damping. I need to think more about that, I'm sort
+;; of confused.
+
+;; Exercise 1.46
+;; Iterative improvement
+(define (iterative-improve good-enough? improve)
+  (define (iter guess)
+    (if (good-enough? guess)
+        guess
+        (iter (improve guess))))
+  iter)
+(define (average x y) (/ (+ x y) 2))
+(define (square x) (* x x))
+(define (sqrt x)
+  (define (improve guess)
+    (average guess (/ x guess)))
+  (define (good-enough? guess)
+    (< (abs (- (square guess) x)) 0.0001))
+  ((iterative-improve good-enough? improve) 1))
+(define tolerance 0.00001)
+(define (fixed-point f)
+  (define (good-enough? guess)
+    (< (abs (- guess (improve guess))) tolerance))
+  (define (improve guess)
+    (f guess))
+  ((iterative-improve good-enough? improve) 1.0))
+
+
+;;; CHAPTER 2
+
+;; Exercise 2.1
+;; a better make-rat
+(define (opp n) (* -1 n))
+(define (make-rat n d)
+  (cond
+   ((and (negative? n) (negative? d)) (cons (opp n) (opp d)))
+   ((negative? d) (cons (opp n) (opp d)))
+   (else (cons n d))))
+
+;; Exercise 2.2
+;; defining segments and points
+(define (make-segment p1 p2)
+  (cons p1 p2))
+(define (start-segment seg)
+  (car seg))
+(define (end-segment seg)
+  (cdr seg))
+(define (make-point x y)
+  (cons x y))
+(define (x-point p)
+  (car p))
+(define (y-point p)
+  (cdr p))
+(define (print-point p)
+  (newline)
+  (display "(")
+  (display (x-point p))
+  (display ",")
+  (display (y-point p))
+  (display ")"))
+(define (midpoint-segment seg)
+  (make-point (/ (+ (x-point (start-segment seg)) (x-point (end-segment seg)))
+                 2)
+              (/ (+ (y-point (start-segment seg)) (y-point (end-segment seg)))
+                 2)))
+
+;; Exercsie 2.3
+;; representing rectangles in a plane
+(define (make-rect x-origin y-origin width height)
+  (let ((origin (make-point x-origin y-origin)))
+    (cons origin (cons width height))))
+(define (rect-origin r)
+  (car r))
+(define (rect-height r)
+  (cdr (cdr r)))
+(define (rect-width r)
+  (car (cdr r)))
+
+(define (rect-area r)
+  (* (rect-height r) (rect-width r)))
+(define (rect-perim r)
+  (+ (* 2 (rect-width r)) (* 2 (rect-height r))))
+
+;; Now represent rectangles differently.
+(define (make-rect left-x top-y right-x bottom-y)
+  (cons left-x (cons top-y (cons right-x bottom-y))))
+(define (rect-left-x r)
+  (car r))
+(define (rect-right-x r)
+  (car (cdr (cdr r))))
+(define (rect-top-y r)
+  (car (cdr r)))
+(define (rect-bottom-y r)
+  (cdr (cdr (cdr r))))
+
+(define (rect-height r)
+  (- (rect-bottom-y r) (rect-top-y r)))
+(define (rect-width r)
+  (- (rect-right-x r) (rect-left-x r)))
+
+;; Exercise 2.4
+;; represent pairs as procedures
+(define (cons x y)
+  (lambda (m) (m x y)))
+(define (car z)
+  (z (lambda (x y) x)))
+(define (cdr z)
+  (z (lambda (x y) y)))
+
+;; Exercise 2.5
+;; represent pairs of non-negative numbers
+(define (cons-num a b)
+  (* (expt 2 a) (expt 3 b)))
+(define (car-num z)
+  (count-divisions z 2))
+(define (cdr-num z)
+  (count-divisions z 3))
+(define (inc i) (+ 1 i))
+;; I feel very dumb for needing this function. Isn't there some very
+;; basic math that does what this function does?
+(define (count-divisions n x)
+  (define (count-divisions-iter n i)
+    (if (integer? (/ n x))
+        (count-divisions-iter (/ n x) (inc i))
+        i))
+  (count-divisions-iter n 0))
+
+;; Exercise 2.6
+;; Define one, two, and + in terms of procedures
+(define zero (lambda (f) (lambda (x) x)))
+(define (add-1 n)
+  (lambda (f) (lambda (x) (f ((n f) x)))))
+;; (add-1 zero) =>
+(lambda (f)
+  (lambda (x)
+    (f (((lambda (g)
+           (lambda (y) y))
+         f)
+        x))))
+(lambda (f)
+  (lambda (x)
+    (f ((lambda (y) y)
+        x))))
+(lambda (f)
+  (lambda (x)
+    (f x)))
+;; (add-1 'the-value-above-this)
+(add-1 (lambda (f)
+         (lambda (x)
+           (f x))))
+(lambda (f)
+  (lambda (x)
+    (f (f x))))
+;; so it looks like each add-1 wraps the initial x in another call to f
+;; define one
+(define one (lambda (f)
+              (lambda (x)
+                (f x))))
+(define two (lambda (f)
+              (lambda (x)
+                (f (f x)))))
+(define (add n m)
+  (lambda (f)
+    (lambda (x)
+      ((m f) ((n f) x)))))
+
+;; Exercise 2.7
+(define  (make-interval a b) (cons a b))
+(define (lower-bound interval)
+  (car interval))
+(define (upper-bound interval)
+  (cdr interval))
+;; Exericse 2.8
+(define (sub-interval a b)
+  (make-interval (- (lower-bound a) (lower-bound b))
+                 (- (upper-bound a) (upper-bound b))))
+
+(define (add-interval a b)
+  (make-interval (+ (lower-bound a) (lower-bound b))
+                 (+ (upper-bound a) (upper-bound b))))
+
+;; Exercise 2.9
+(define (interval-width i)
+  (/ (- (upper-bound i) (lower-bound i)) 2))
+;; The width of the result of subtraction appears to be (- (width a) (width b))
+;; The width of the multiple of two intervals is not a function of the
+;; width of the two intervals, as shown by:
+(define (mul-interval a b)
+  (let ((p1 (* (lower-bound a) (lower-bound b)))
+        (p2 (* (lower-bound a) (upper-bound b)))
+        (p3 (* (upper-bound a) (lower-bound b)))
+        (p4 (* (upper-bound a) (upper-bound b))))
+    (make-interval (min p1 p2 p3 p4)
+                   (max p1 p2 p3 p4))))
+;; We define three intervals a,b,c, all with a width of one.
+;; We multiply a * b, and find the width of that, w1
+;; We multiple b * c, and find the width of that, w2
+;; If w1 != w2, the width of the multiple is not a function
+;; of the width of the intervals being multiplied.
+(define interval-a (make-interval 1 3))
+(define interval-b (make-interval 2 4))
+(define interval-c (make-interval 3 5))
+(= 1
+   (interval-width interval-a)
+   (interval-width interval-b)
+   (interval-width interval-c)) ;; = #t
+(= (interval-width (mul-interval interval-a interval-b))
+   (interval-width (mul-interval interval-b interval-c))) ;; = #f
+
+;; Exercise 2.10
+;; Modify interval code to handle division by zero errors
+(define (div-interval x y)
+  (if (and (>= (upper-bound y) 0)
+           (<= (lower-bound y) 0))
+      (error "Cannot divide by an interval that spans zero")
+      (mul-interval x (make-interval (/ 1.0 (upper-bound y))
+                                     (/ 1.0 (lower-bound y))))))
+
+;; Exercise 2.11
+;; I GOT THIS ONE WRONG
+;; More efficient interval multiplication
+;; possible cases:
+;; all numbers are non-negative
+;; all numbers but lower-x are non-negative
+;; all numbers but lower-y are non-negative
+;; lower numbers are negative and upper numbers are non-negative
+;; upper-x is non-negative, the rest are negative
+;; upper-y is non-negative, the rest are negative
+;; all numbers are negative
+;; both upper-bounds are zero
+;; both lower-bounds are zero
+(define (mul-interval x y)
+  (let ((ux (positive? (upper-bound x)))
+        (uy (positive? (upper-bound y)))
+        (lx (positive? (lower-bound x)))
+        (ly (positive? (lower-bound y))))
+    (cond
+     ((and lx ly) (make-interval (* (lower-bound x) (lower-bound y))
+                                 (* (upper-bound x) (upper-bound y))))
+     ((and ly ux (not lx)) (make-interval (* (lower-bound x) (upper-bound y))
+                                          (* (upper-bound x) (upper-bound y))))
+     ((and lx up (lot ly)) (make-interval (* (lower-bound y) (upper-bound x))
+                                          (* (upper-bound x) (upper-bound y))))
+     ((and ux uy (not ly) (not lx))
+      (make-interval (* (if (< (lower-bound x) (lower-bound y))
+                            (lower-bound x)
+                            (lower-bound y))
+                        (if (< (lower-bound x) (lower-bound y))
+                            (upper-bound y)
+                            (upper-bound x)))
+                     (* (upper-bound x) (upper-bound y))))
+     ((and ux (not uy) (not lx))
+      (make-interval (* (upper-bound x) (lower-bound y))
+                     (* (upper-bound y) (lower-bound x))))
+     ((and uy (not ux) (not ly))
+      (make-interval (* (upper-bound y) (lower-bound x))
+                     (* (upper-bound x) (lower-bound y))))
+     ((and (not ux) (not uy))
+      (let ((lx*ly (* (lower-bound x) (lower-bound y)))
+            (lx*uy (* (lower-bound x) (upper-bound y)))
+            (ux*ly (* (upper-bound x) (lower-bound y)))
+            (ux*uy (* (upper-bound x) (upper-bound y)))))
+      (make-interval (min lx*ly lx*uy ux*ly ux*uy)
+                     (max lx*ly lx*uy ux*ly ux*uy))))))
+
+;; Exercise 2.12
+;; Intervals from center point and width as percentage
+(define (make-center-width c w)
+  (make-interval (- c w) (+ c w)))
+(define (center i)
+  (/ (+ (lower-bound i) (upper-bound i)) 2))
+(define (width i)
+  (/ (- (upper-bound i) (lower-bound i)) 2))
+
+(define (make-center-percent c p)
+  (make-interval (- c (* c p)) (+ c (* c p))))
+(define (percent i)
+  (/ (- (upper-bound i) (center i))
+     (center i)))
+
+;; Exercise 2.13
+;; Formula for estimating the percentage tolerance of the multiple of
+;; two intervals
+;; This solution is fairly accurate for low percentages (< .10)
+(define (estimated-tolerance-of-multiple x y)
+  (+ (percentage x) (percentage y)))
+
+;; Exercise 2.14
+;; First verify the problem exists:
+(define (par1 r1 r2)
+  (div-interval (mul-interval r1 r2)
+                (add-interval r1 r2)))
+(define (par2 r1 r2)
+  (let ((one (make-interval 1 1)))
+    (div-interval one
+                  (add-interval (div-interval one r1)
+                                (div-interval one r2)))))
+(define A (make-center-percent 10 .0000001))
+(define B (make-center-percent 9 .01))
+(center (div-interval a a))
+(percent (div-interval a a))
+;; The result of A/A should be an interval centered at one, with a percent of zero.
+;; Because of some inaccuracy of the representation, this is not the result, and the
+;; error is greater with larger initial percents.
+
+;; Exercise 2.15
+;; is par2 better than par1?
+;; The reasoning is that a procedure that uses fewer instances of values
+;; with an uncertainty will be more accurate.
+;; This seems logical, as r1 and r2 (the args to par1 and par2) are
+;; used twice each in par1 and only once each in par2.
+;; The interval `one` is used multiple times in par2, but because this is the
+;; interval from 1 to 1, it has no uncertainty.
+;; My lingering concern is that par2 uses more procedures to calculate intervals,
+;; all of which may introduce more uncertainty/error.
+
+;; Exercise 2.17
+;; last-pair
+(define  (last-pair l)
+  (if (null? (cdr l))
+      l
+      (last-pair (cdr l))))
+
+;; Exercise 2.18
+;; reverse
+(define (append list1 list2)
+  (if (null? list1)
+      list2
+      (cons (car list1) (append (cdr list1) list2))))
+
+(define (reverse l)
+  (define (reverse-iter l coll)
+    (if (null? l)
+        coll
+        (reverse-iter (cdr l) (cons (car l) coll))))
+  (reverse-iter l '()))
+
+;; Exercise 2.19
+;; order of coin-values does not matter.
+(define (cc amount coin-values)
+  (cond ((= amount 0) 1)
+        ((or (< amount 0) (no-more? coin-values)) 0)
+        (else
+         (+ (cc amount
+                (except-first-denomination coin-values))
+            (cc (- amount
+                   (first-denomination coin-values))
+                coin-values)))))
+(define (first-denomination coins) (car coins))
+(define (except-first-denomination coins) (cdr coins))
+(define (no-more? coins) (null? coins))
+
+;; Exercise 2.20
+;; rest args!
+(define (same-parity x . y)
+  (let ((parity-check (if (even? x) even? odd?)))
+    (define (parity-check-list l)
+      (if (null? l)
+          l
+          (if (parity-check (car l))
+              (cons (car l) (parity-check-list (cdr l)))
+              (parity-check-list (cdr l)))))
+    (cons x (parity-check-list y))))
+
+;; Exercise 2.21
+;; mapping!
+(define (square-list items)
+  (if (null? items)
+      items
+      (cons (square (car items))
+            (square-list (cdr items)))))
+
+(define (square-list items)
+  (map square items))
+
+;; Exercise 2.22
+;; iterative square-list
+;; louis' first implementation is backward because
+;; he is cons'ing the first result onto the empty list, then
+;; the next result onto that, until the list is exhausted,
+;; thereby building up the list in reverse order.
+;; His second attempt doesn't work because each time he is cons'ing the
+;; answer - a list - onto the next result - a number.
+;; This we create deeper and deeper nesting as the process executes.
+(define (square-list items)
+  (define (iter things answer)
+    (if (null? things)
+        answer
+        (iter (cdr things)
+              ;; something like this?
+              ;; would need to define concat.
+              (concat answer (square (car things))))))
+  (iter items '()))
+
+;; Exercise 2.23
+;; for-each
+(define (for-each fun items)
+  (if (null? items)
+      true
+      (let ((first (car items)))
+        (fun first)
+        (for-each fun (cdr items)))))
+
+;; Exercise 2.24
+;; what is the result of (list 1 (list 2 (list 3 4)))
+;; given by the interpretter?
+;; (1 (2 (3 4)))
+;; box and pointer structure?
+;; [[][]]
+;;  | |
+;;  v v
+;;  1 [[][]]
+;;     | |
+;;     v v
+;;     2 [[][]]
+;;        | |
+;;        v v
+;;        3 [[][]]
+;;           | |
+;;           v v
+;;           4 /
+;; As a tree?
+;;   .
+;;  / \
+;; 1  .
+;;    /\
+;;   2 .
+;;     /\
+;;    3 4
+
+;; Exercise 2.25
+;; get 7 from these lists:
+;; a)
+(let ((l '(1 3 (5 7) 9)))
+  (car (cdr (car (cdr (cdr l))))))
+;; b)
+(let ((l '((7))))
+  (car (car l)))
+;; c)
+(let ((l '(1 (2 (3 (4 (5 (6 7))))))))
+  (car (cdr (car (cdr (car (cdr (car (cdr (car (cdr (car (cdr l)))))))))))))
+
+;; Exercise 2.26
+(define x (list 1 2 3))
+(define y (list 4 5 6))
+;; what is (append x y)?
+;; (1 2 3 4 5 6)
+;; what is (cons x y)
+;; ((1 2 3) 4 5 6)
+;; what is (list x y)
+;; ((1 2 3) (4 5 6))
+(append x y)
+(cons x y)
+(list x y)
+
+;; Exercise 2.27
+(define (deep-reverse l)
+  (cond ((null? l) l)
+        ((pair? (car l))
+         (append (deep-reverse (cdr l))
+                 (list (deep-reverse (car l)))))
+        (else (append (deep-reverse (cdr l))
+                      (list (car l))))))
+
+;; Exercise 2.28
+(define (fringe x)
+  (cond
+   ((null? x) x)
+   ((pair? x) (append (fringe (car x)) (fringe (cdr x))))
+   (else (list x))))
+
+;; Should be on page 170 (at least) by end of August
+
+;; Exercise 2.29
+;; binary mobiles
+(define (make-mobile left right)
+  (list left right))
+(define (make-branch length structure)
+  (list length structure))
+
+;; a:
+(define (left-branch mobile)
+  (car mobile))
+(define (right-branch mobile)
+  (car (cdr mobile)))
+(define (branch-length branch)
+  (car branch))
+(define (branch-structure branch)
+  (car (cdr branch)))
+
+;; b:
+(define (mobile? weight-or-mobile)
+  (pair? weight-or-mobile))
+
+;; An improvement that can be made: extract `branch-weight`
+;; That way we can use branch weight again in `branch-torque`
+(define (total-weight mobile)
+  (define (total-branch-weight branch)
+    (let ((weight-or-mobile (branch-structure branch)))
+      (if (mobile? weight-or-mobile)
+          (total-weight weight-or-mobile)
+          weight-or-mobile)))
+  (+ (total-branch-weight (left-branch mobile))
+     (total-branch-weight (right-branch mobile))))
+
+(= 20 (total-weight
+       (make-mobile
+        (make-branch 3
+                     (make-mobile (make-branch 3 5) (make-branch 4 5)))
+        (make-branch 2
+                     (make-mobile (make-branch 3 5) (make-branch 4 5))))))
+
+;; c:
+(define (torque length weight)
+  (* length weight))
+
+(define (branch-torque branch)
+  (let ((weight-or-mobile (branch-structure branch)))
+    (torque (branch-length branch)
+            (if (mobile? weight-or-mobile)
+                (total-weight weight-or-mobile)
+                weight-or-mobile))))
+
+(define (branch-balanced? branch)
+  (let ((weight-or-mobile (branch-structure branch)))
+    (if (mobile? weight-or-mobile)
+        (balanced? weight-or-mobile)
+        #t)))
+
+(define (balanced? mobile)
+  (let ((left-torque (branch-torque (left-branch mobile)))
+        (right-torque (branch-torque (right-branch mobile))))
+    (and (= left-torque right-torque)
+         (branch-balanced? (left-branch mobile))
+         (branch-balanced? (right-branch mobile)))))
+
+(balanced?
+ (make-mobile
+  (make-branch 6 (make-mobile (make-branch 1 1) (make-branch 1 1)))
+  (make-branch 3 4)))
+
+(balanced? (make-mobile (make-branch 1 1) (make-branch 1 1)))
+
+;; d:
+;; change constructors
+(define (make-mobile left right)
+  (cons left right))
+(define (make-branch length structure)
+  (cons length structure))
+;; This forces selectors to change:
+;; (just the ones that depend on the cdr being a list, rather than just an item)
+(define (right-branch mobile)
+  (cdr mobile))
+(define (branch-structure branch)
+  (cdr branch))
+
+;; Exercise 2.30
+;; square-tree
+(define (square-tree tree)
+  (cond ((null? tree) tree)
+        ((not (pair? tree)) (square tree))
+        (else (cons (square-tree (car tree))
+                    (square-tree (cdr tree))))))
+
+(define (square-tree tree)
+  (map (lambda (t)
+         (if (pair? t)
+             (square-tree t)
+             (square t)))
+       tree))
+
+;; Exercise 2.31
+(define (tree-map f tree)
+  (map (lambda (t)
+         (if (pair? t)
+             (tree-map f t)
+             (f t)))
+       tree))
+
+(define (square-tree tree) (tree-map square tree))
