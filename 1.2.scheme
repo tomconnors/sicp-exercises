@@ -1091,3 +1091,39 @@
        tree))
 
 (define (square-tree tree) (tree-map square tree))
+
+;; Exercise 2.32
+;; subsets
+;; Why it works:
+;; for each list, it first finds all the subsets of the tail
+;; of the list. This bottoms out at an empty list.
+;; After that, it maps over the results of finding all the
+;; tail-subsets, and cons's the first item to that -
+;; So first it cdrs down the list in calls to subsets.
+;; This bottoms out at the empty list.
+;; Then, with just the last item in the original list,
+;; it maps over the previous result (a list with just the empty list in it)
+;; and cons's the last element of the original list onto it, then
+;; appends the result of that map to the previous result.
+;; This is hard to explain, but I get it.
+(define (subsets s)
+  (if (null? s)
+      (list s)
+      (let ((rest (subsets (cdr s))))
+        (append rest (map (lambda (item)
+                            (cons (car s) item))
+                          rest)))))
+
+;; Exercise 2.33
+(define (accumulate op initial sequence)
+  (if (null? sequence)
+      initial
+      (op (car sequence)
+          (accumulate op initial (cdr sequence)))))
+(define (inc i) (+ 1 i))
+(define (map p sequence)
+  (accumulate (lambda (x y) (cons (p x) y)) '() sequence))
+(define (append seq1 seq2)
+  (accumulate cons seq2 seq1))
+(define (length sequence)
+  (accumulate (lambda (item memo) (inc memo)) 0 sequence))
