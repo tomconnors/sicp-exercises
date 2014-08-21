@@ -1180,3 +1180,196 @@
                   (dot-product vec vec2))
                 cols))
          m)))
+
+;; Exercise 2.38
+;; The way I picture fold-right actually seems more like a left-moving
+;; process...
+;; You get a list: (a b c d)
+;; Then something that involves the last element: (a b c [d])
+;; Then the last + the next to last element: (a b [c d])
+;; and so on: (a [b c d]) , ([a b c d]) == result
+;; And fold-left is the opposite:
+;; (a b c d) => ([a] b c d) => ([a b] c d) => ([a b c] d) => ([a b c d]) == result
+(define (accumulate op initial sequence)
+  (if (null? sequence)
+      initial
+      (op (car sequence)
+          (accumulate op initial (cdr sequence)))))
+(define fold-right accumulate)
+(define (fold-left op initial sequence)
+  (define (iter result rest)
+    (if (null? rest)
+        result
+        (iter (op result (car rest))
+              (cdr rest))))
+  (iter initial sequence))
+
+(fold-right / 1 (list 1 2 3)) ;; = (1 / (2 / (3 / 1))) == 3/2
+(fold-left / 1 (list 1 2 3)) ;; = (((1/1)/2)/3) == 1/6
+(fold-right list nil (list 1 2 3)) ;; = (((3) 2) 1) <- WRONG - fold-right passes in the first of the sequence as the FIRST argument when op is called.
+(fold-left list nil (list 1 2 3)) ;; (list (list () 1) 2).. => (((() 1) 2) 3)
+;; In order for fold-left and fold-right to produce the same result,
+;; op should return the same value for the same arguments, regardless
+;; of the order of the arguments. For instance, + produces the
+;; same result for both:
+(fold-left + 1 (list 1 2 3))
+(fold-right + 1 (list 1 2 3))
+
+;; Exercise 2.39
+;; What really seems to matter for me to remember about fold-left
+;; and fold-right is the order of arguments to the passed in operation.
+;; Also the ordering which the list is iterated.
+;; For fold-right/accumulate:
+;; the operation is called with the first item in the list
+;;  and the result of folding the rest of the list.
+;; For fold-left:
+;; the operation is called with the result and the first of the list.
+(define (reverse sequence)
+  (fold-right (lambda (x y) (append y (list x))) nil sequence))
+(define (reverse sequence)
+  (fold-left (lambda (x y) (cons y x)) nil sequence))
+
+;; Exercise 2.40
+(define (inc i) (+ i 1))
+(define (dec i) (- i 1))
+(define (flatmap proc seq)
+  (accumulate append nil (map proc seq)))
+(define nil '())
+(define (enumerate-interval min max)
+  (if (> min max)
+      nil
+      (cons min (enumerate-interval (inc min) max))))
+(define (unique-pairs n)
+  (flatmap
+   (lambda (i)
+     (map
+      (lambda (j)
+        (list i j))
+      (enumerate-interval 1 (dec i))))
+   (enumerate-interval 1 n)))
+(define (prime-sum? pair)
+  (prime? (+ (car pair) (cadr pair))))
+(define (make-pair-sum pair)
+  (list (car pair) (cadr pair) (+ (car pair) (cadr pair))))
+(define (prime-sum-pairs n)
+  (map make-pair-sum
+       (filter prime-sum?
+               (unique-pairs n))))
+
+;; Exercise 2.41
+(define (ordered-triples-sum n s)
+  (filter
+   (lambda (triple)
+     (= s (+ (car triple) (cadr triple) (caddr triple))))
+   (flatmap
+    (lambda (i)
+      (flatmap
+       (lambda (j)
+         (map (lambda (k) (list i j k))
+              (enumerate-interval 1 (dec j))))
+       (enumerate-interval 1 (dec i))))
+    (enumerate-interval 1 n))))
+
+;; Exercise 2.42
+;; eight queens problem
+(define (queens board-size)
+  (define (queen-cols k)
+    (if (= k 0)
+        (list empty-board)
+        (filter
+         (lambda (positions) (safe? k positions))
+         (flatmap
+          (lambda (rest-of-queens)
+            (map (lambda (new-row)
+                   (adjoin-position new-row k rest-of-queens))
+                 (enumerate-interval 1 board-size)))
+          (queen-cols (- k 1))))))
+  (queen-cols board-size))
+(define empty-board '())
+(define (adjoin-position row col board)
+  (cons (list row col) board))
+(define (row pos)
+  (car pos))
+(define (col pos)
+  (cadr pos))
+(define (safe? column board-positions)
+  (if (<= (length board-positions) 1)
+      true
+      (let ((new-pos (car board-positions)))
+        (null? (filter
+                (lambda (position)
+                  (or (= (row new-pos) (row position))
+                      (= (abs (- (row new-pos) (row position)))
+                         (abs (- (col new-pos) (col position))))))
+                (cdr board-positions))))))
+
+;; Exercise 2.43
+;; Louis' code is slow because it calculates the result for k-1 once for every
+;; row/column pair, rather than once for just every column - I think this makes
+;; the solution exponential. So if the original solution runs in 2 seconds, the
+;; bad one runs in 4.
+
+;; Exercise 2.44
+;; up-split
+(define (up-split painter n)
+  (if (= n 0)
+      painter
+      (let ((smaller (up-split painter (- n 1))))
+        (below painter (beside smaller smaller)))))
+
+;; Exercise 2.45
+;; general splitting
+;; upper and lower are bad names. What are better names?
+(define (split upper lower)
+  (define (split-inner painter n)
+    (if (= n 0)
+        painter
+        (let ((smaller (split-inner painter (- n 1))))
+          (upper painter (lower smaller smaller)))))
+  split-inner)
+
+;; Exercise 2.46
+;; vectors!
+(define (make-vect x y)
+  (list x y))
+(define (xcor-vect v)
+  (car v))
+(define (ycor-vect v)
+  (cadr v))
+(define (add-vect v1 v2)
+  (make-vect (+ (xcor-vect v1) (xcor-vect v2))
+             (+ (ycor-vect v1) (ycor-vect v2))))
+(define (sub-vect v1 v2)
+  (make-vect (- (xcor-vect v1) (xcor-vect v2))
+             (- (ycor-vect v1) (ycor-vect v2))))
+(define (scale-vect scale v)
+  (make-vect (* scale (xcor-vect v))
+             (* scale (ycor-vect v))))
+
+;; Exercise 2.47
+;; frame constructors
+(define (make-frame origin edge1 edge2)
+  (list origin edge1 edge2))
+(define (origin-frame frame)
+  (car frame))
+(define (edge1-frame frame)
+  (cadr frame))
+(define (edge2-frame frame)
+  (caddr frame))
+(define (make-frame origin edge1 edge2)
+  (cons origin (cons edge1 edge2)))
+(define (origin-frame frame)
+  (car frame))
+(define (edge1-frame frame)
+  (cadr frame))
+(define (edge2-frame frame)
+  (cddr frame))
+
+;; Exercise 2.48
+;; segments
+(define (make-segment start end)
+  (cons start end))
+(define (start-segment seg)
+  (car seg))
+(define (end-segment seg)
+  (cdr seg))
