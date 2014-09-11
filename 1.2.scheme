@@ -1503,3 +1503,119 @@
    (beside
     (rotate-90 painter1)
     (rotate-90 painter2))))
+
+;; Exercise 2.52
+;; a.
+;; Again, my time is more valuable than hand-transcribing individual segments
+;; of the wave drawing.
+;; b. corner-split with only one up-split and one right-split
+(define (corner-split painter n)
+  (if (= n 0)
+      painter
+      (let ((up (up-split painter (- n 1)))
+            (right (right-split painter (- n 1))))
+        (let ((top-left up)
+              (bottom-right right)
+              (corner (corner-split painter (- n 1))))
+          (beside (below painter top-left)
+                  (below bottom-right corner))))))
+;; c.
+(define (square-limit painter n)
+  ;; order of params to square of four is tl, tr, bl, br
+  (let ((combine4 (square-of-four identity flip-horiz flip-vert rotate-180)))
+    (combine4 (corner-split painter n))))
+
+;; Exercise 2.53
+(define (memq item x)
+  (cond ((null? x) false)
+        ((eq? item (car x)) x)
+        (else (memq item (cdr x)))))
+
+(list 'a 'b 'c) ;; (a b c)
+(list (list 'george)) ;; ((george))
+(cdr '((x1 x2) (y1 y2))) ;; ((y1 y2))
+(cadr '((x1 x2) (y1 y2))) ;; (y1 y2)
+(pair? (car '(a short list))) ;; false
+(memq 'red '((red shoes) (blue socks))) ;; t - wrong! memq is shallow.
+(memq 'red '(red shoes blue socks)) ;; t - wrong! memq returns the sublist starting
+                                    ;; with the match - the result is
+                                    ;; (red shoes blue socks)
+
+;; Exercise 2.54
+(define built-in-equal? equal?)
+(define (equal? l1 l2)
+  (cond ((and (symbol? l1) (symbol? l2))
+         (eq? l1 l2))
+        ((and (list? l1) (list? l2))
+         (or (and (null? l1) (null? l2))
+             (and (equal? (car l1) (car l2))
+                  (equal? (cdr l1) (cdr l2)))))
+        (else false)))
+
+;; Exercise 2.55
+;; why is the evaluation of
+(car ''abracadabra)
+;; 'quote' ?
+;; Because ' is a reader macro that wraps the following expression in a quote form.
+;; The above appears to the interpreter as
+(car (quote (quote abracadabra)))
+;; and the car of that list is 'quote'
+;; The above isn't quite right.
+;; The expansion is correct, but I left off that the symbol 'abracadabra' is quoted,
+;; which prevents it being evaluated.
+;; Thus, just evaluating
+(car 'abracadabra)
+;; is an error because it becomes
+(car (quote abracadabra))
+;; which becomes
+(car abracadabra)
+;; and you can't pass a symbol to car.
+
+;; Exercise 2.56
+;; Symbolic differentiation
+
+(define (variable? e) (symbol? e))
+(define (same-variable? v1 v2)
+  (and (variable? v1) (variable? v2) (eq? v1 v2)))
+(define (sum? e) (and (pair? e) (eq? (car e) '+)))
+(define (addend e) (cadr e))
+(define (augend e) (caddr e))
+
+(define (=number? exp num)
+  (and (number? exp) (= exp num)))
+(define (make-sum a1 a2)
+  (cond ((=number? a1 0) a2)
+        ((=number? a2 0) a1)
+        ((and (number? a1) (number? a2)) (+ a1 a2))
+        (else (list '+ a1 a2))))
+
+(define (product? e)
+  (and (pair? e) (eq? (car e) '*)))
+
+(define (multiplier e) (cadr e))
+(define (multiplicand e) (caddr e))
+
+(define (make-product m1 m2)
+  (cond ((or (=number? m1 0) (=number? m2 0)) 0)
+        ((=number? m1 1) m2)
+        ((=number? m2 1) m1)
+        ((and (number? m1) (number? m2)) (* m1 m2))
+        (else (list '* m1 m2))))
+
+(define (deriv exp var)
+  (cond ((number? exp) 0)
+        ((variable? exp)
+         (if (same-variable? exp var) 1 0))
+        ((sum? exp)
+         (make-sum (deriv (addend exp) var)
+                   (deriv (augend exp) var)))
+        ((product? exp)
+         (make-sum
+          (make-product (multiplier exp)
+                        (deriv (multiplicand exp) var))
+          (make-product (deriv (multiplier exp) var)
+                        (multiplicand exp))))
+        (else
+         (error "unknown expression type -- DERIV" exp))))
+
+;; NOT DONE 2.56
