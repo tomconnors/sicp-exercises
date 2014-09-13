@@ -1573,7 +1573,7 @@
 
 ;; Exercise 2.56
 ;; Symbolic differentiation
-
+(define (dec x) (- x 1))
 (define (variable? e) (symbol? e))
 (define (same-variable? v1 v2)
   (and (variable? v1) (variable? v2) (eq? v1 v2)))
@@ -1602,6 +1602,18 @@
         ((and (number? m1) (number? m2)) (* m1 m2))
         (else (list '* m1 m2))))
 
+(define (exponentiation? e)
+  (and (pair? e) (eq? (car e) '**)))
+(define (make-exponentiation base exp)
+  (cond ((=number? exp 0) 1)
+        ((=number? exp 1) base)
+        (else (list '** base exp))))
+(define (base x)
+  (cadr x))
+(define (exponent x)
+  (caddr x))
+
+
 (define (deriv exp var)
   (cond ((number? exp) 0)
         ((variable? exp)
@@ -1615,7 +1627,11 @@
                         (deriv (multiplicand exp) var))
           (make-product (deriv (multiplier exp) var)
                         (multiplicand exp))))
+        ((exponentiation? exp)
+         (make-product
+          (make-product (exponent exp)
+                        (make-exponentiation (base exp)
+                                             (dec (exponent exp))))
+          (deriv (base exp) var)))
         (else
          (error "unknown expression type -- DERIV" exp))))
-
-;; NOT DONE 2.56
