@@ -1635,3 +1635,137 @@
           (deriv (base exp) var)))
         (else
          (error "unknown expression type -- DERIV" exp))))
+
+;; Exercise 2.57
+;; sums and products of arbitrary length
+(define (sum? e) (and (list? e) (eq? (car e) '+)))
+(define (addend e) (cadr e))
+(define (augend e) (apply make-sum (cddr e)))
+
+(define (=number? exp num)
+  (and (number? exp) (= exp num)))
+
+(define (numbers? l)
+  (every number? l))
+
+(define (make-sum a1 . rest)
+  (cond ((null? rest) a1)
+        ((=number? a1 0) (apply make-sum rest))
+        ((and (number? a1) (numbers? rest)) (apply + a1 rest))
+        (else (apply list '+ a1 rest))))
+
+(define (product? e)
+  (and (list? e) (eq? (car e) '*)))
+
+(define (multiplier e) (cadr e))
+(define (multiplicand e) (apply make-product (cddr e)))
+
+(define (make-product m1 . rest)
+  (cond ((null? rest) m1)
+        ((or (=number? m1 0) (any (lambda (v) (=number? v 0)) rest)) 0)
+        ((=number? m1 1) (apply make-product rest))
+        ((and (number? m1) (numbers? rest)) (apply * m1 rest))
+        (else (apply list '* m1 rest))))
+
+;; Exercise 2.58
+;; a. infix notation
+
+(define (sum? e) (and (list? e) (eq? (cadr e) '+)))
+(define (addend e) (car e))
+(define (augend e) (caddr e))
+(define (make-sum a1 a2)
+  (cond ((=number? a1 0) a2)
+        ((=number? a2 0) a1)
+        ((and (number? a1) (number? a2)) (+ a1 a2))
+        (else (list a1 '+ a2))))
+
+(define (product? e)
+  (and (pair? e) (eq? (cadr e) '*)))
+(define (multiplier e) (car e))
+(define (multiplicand e) (caddr e))
+(define (make-product m1 m2)
+  (cond ((or (=number? m1 0) (=number? m2 0)) 0)
+        ((=number? m1 1) m2)
+        ((=number? m2 1) m1)
+        ((and (number? m1) (number? m2)) (* m1 m2))
+        (else (list m1 '* m2))))
+
+;; b. infix w/ standard algebraic notation
+
+(define (make-expression e)
+  (cond ((sum? e) )))
+
+(define (sum? e) (and (list? e) (eq? (cadr e) '+)))
+(define (addend e) (car e))
+(define (augend e) (make-expression (cddr e)))
+(define (make-sum a1 . rest)
+  (cond ((null? rest) a1)
+        ((=number? a1 0) (make-expression rest))
+        ((and (number? a1) (numbers? rest)) (apply + a1 rest))
+        (else (list a1 '+ (make-expression rest)))))
+
+(define (product? e)
+  (and (pair? e) (eq? (cadr e) '*)))
+(define (multiplier e) (car e))
+(define (multiplicand e) (make-expression (cddr e)))
+(define (make-product m1 . rest)
+  (cond ((null? rest) m1)
+        ((or (=number? m1 0) (any (lambda (v) (=number? v 0)) rest)) 0)
+        ((=number? m1 1) (apply make-product rest))
+        ((and (number? m1) (numbers? rest)) (apply * m1 rest))
+        (else (list '* m1 (make-expression rest)))))
+
+;; Exercise 2.59
+(define (element-of-set? x set)
+  (cond ((null? set) false)
+        ((equal? (car set) x) true)
+        (else (element-of-set? x (cdr set)))))
+(define (adjoin-set x set)
+  (if (element-of-set? x set)
+      set
+      (cons x set)))
+(define (intersection-set set1 set2)
+  (cond ((or (null? set1) (null? set2)) '())
+        ((element-of-set? (car set1) set2)
+         (cons (car set1) (intersection-set (cdr set1) set2)))
+        (else (intersection-set (cdr set1) set2))))
+(define (union-set set1 set2)
+  (cond ((null? set1) set2)
+        ((null? set2) set1)
+        ((element-of-set? (car set1) set2)
+         (union-set (cdr set1) set2))
+        (else (cons (car set1) (union-set (cdr set1) set2)))))
+
+;; Exercise 2.60
+;; implement the set operations above, allowing duplicates in the sets,
+;; and discuss the efficiency of the new representation,
+;; and think of when you might prefer this representation
+(define (element-of-set? x set)
+  (cond ((null? set) false)
+        ((equal? (car set) x) true)
+        (else (element-of-set? x (cdr set)))))
+(define (adjoin-set x set)
+  (cons x set))
+(define (intersection-set set1 set2)
+  (cond ((or (null? set1) (null? set2)) '())
+        ((element-of-set? (car set1) set2)
+         (cons (car set1) (intersection-set (cdr set1) set2)))
+        (else (intersection-set (cdr set1) set2))))
+;; union-set doesn't filter duplicates before returning, but that's our
+;; representation so that's ok.
+(define (union-set set1 set2)
+  (append set1 set2))
+;; element-of-set? is O(n), but n will be greater (which I'm pretty sure is
+;; technically irrelevant)
+;; adjoin-set is O(1), which is an improvement over the first implementation
+;; intersection-set is O(n^2), and has the same problem as element-of-set? -
+;; the sets will often have more elements to look at
+;; union-set is determined by the efficiency of append, which is O(n) - this
+;; is a big improvement over the other representation's O(n^2)
+;; When would this rep be better?
+;; Well, situations where significantly more unions and adjoins occur would be
+;; more favorable with the later representation...
+;; Actually, it seems to me that the second rep is always favorable.
+;; Bill the Lizard (All Hail) points out that we must consider the
+;; _memory_ in addition to the execution time.
+;; The second representation consumes more memory, the first consumes more time.
